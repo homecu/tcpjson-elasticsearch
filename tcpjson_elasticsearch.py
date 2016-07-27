@@ -24,15 +24,18 @@ def tcpjson_es_relay(elasticsearch_url, listen_addr='0.0.0.0',
 
     @asyncio.coroutine
     def on_data(reader, writer):
-        data = yield from reader.readline()
-        log = json.loads(data.decode())
-        addr = writer.get_extra_info('peername')[0]
-        if 'timestamp' not in log:
-            log['timestamp'] = datetime.datetime.utcnow().isoformat()
-        log['host_addr'] = addr
-        if verbose:
-            shellish.vtmlprint('<b>LOG:<b>', log)
-        asyncio.ensure_future(relaylog(log))
+        while True:
+            data = yield from reader.readline()
+            if not data:
+                break
+            log = json.loads(data.decode())
+            addr = writer.get_extra_info('peername')[0]
+            if 'timestamp' not in log:
+                log['timestamp'] = datetime.datetime.utcnow().isoformat()
+            log['host_addr'] = addr
+            if verbose:
+                shellish.vtmlprint('<b>LOG:<b>', log)
+            asyncio.ensure_future(relaylog(log))
 
     async def relaylog(log):
         data = json.dumps(log)
