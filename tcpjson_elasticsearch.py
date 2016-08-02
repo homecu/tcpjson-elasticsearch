@@ -39,12 +39,16 @@ def tcpjson_es_relay(elasticsearch_url, listen_addr='0.0.0.0',
 
     async def relaylog(log):
         data = json.dumps(log)
-        with aiohttp.Timeout(60):
-            async with es_session.post(es_url, data=data) as r:
-                if r.status != 201:
-                    raise Exception(await r.text())
-                if verbose:
-                    shellish.vtmlprint('<b>ES INDEX:</b>', await r.text())
+        try:
+            with aiohttp.Timeout(60):
+                async with es_session.post(es_url, data=data) as r:
+                    if r.status != 201:
+                        shellish.vtmlprint('<b><red>ES POST ERROR:</red> %s</b>' %
+                                           (await r.text()))
+                    elif verbose:
+                        shellish.vtmlprint('<b>ES INDEX:</b>', await r.text())
+        except asyncio.TimeoutError:
+            shellish.vtmlprint('<b><red>ES POST TIMEOUT</red></b>')
 
     setup = asyncio.start_server(on_data, listen_addr, listen_port, loop=loop)
     server = loop.run_until_complete(setup)
