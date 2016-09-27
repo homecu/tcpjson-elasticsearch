@@ -10,14 +10,10 @@ loop = asyncio.get_event_loop()
 
 
 @shellish.autocommand
-def tcpjson_es_relay(elasticsearch_url, listen_addr='0.0.0.0',
-                     listen_port=19831, verbose=False, es_conn_limit=100):
-    """ A tcp/json server relay to elasticsearch.
-
-    The URL should contain the /index/type args as per the elasticsearch API.
-
-    E.g. https://elasticsearch/logs/docker
-    """
+def tcpjson_es_relay(elasticsearch_url, es_index='statistics', es_type='docker',
+                     listen_addr='0.0.0.0', listen_port=19831, verbose=False,
+                     es_conn_limit=100):
+    """ A tcp/json server relay to elasticsearch. """
     conn = aiohttp.TCPConnector(limit=es_conn_limit)
     es_session = aiohttp.ClientSession(loop=loop, connector=conn)
     es_url = elasticsearch_url
@@ -30,18 +26,20 @@ def tcpjson_es_relay(elasticsearch_url, listen_addr='0.0.0.0',
                 break
             log = json.loads(data.decode())
             addr = writer.get_extra_info('peername')[0]
-            if 'timestamp' not in log:
-                log['timestamp'] = datetime.datetime.utcnow().isoformat()
+            ts = datetime.datetime.utcnow()
+            log['timestamp'] = ts.isoformat()
             log['host_addr'] = addr
             if verbose:
                 shellish.vtmlprint('<b>LOG:<b>', log)
-            asyncio.ensure_future(relaylog(log))
+            asyncio.ensure_future(relaylog(log, ts))
 
-    async def relaylog(log):
+    async def relaylog(log, ts):
         data = json.dumps(log)
+        url = '%s/%s-%s/%s' % (es_url, es_index, ts.strftime('%Y-%m-%d'),
+                               es_type)
         try:
             with aiohttp.Timeout(60):
-                async with es_session.post(es_url, data=data) as r:
+                async with es_session.post(url, data=data) as r:
                     if r.status != 201:
                         shellish.vtmlprint('<b><red>ES POST ERROR:</red> %s</b>' %
                                            (await r.text()))
